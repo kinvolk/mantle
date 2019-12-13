@@ -59,6 +59,33 @@ const (
         label: wasteland
         wipe_filesystem: true
 `
+
+	CLConfigDataRaid = `storage:
+  raid:
+    - name: "DATA"
+      level: "{{ .RaidLevel }}"
+      devices:
+        - "/dev/disk/by-partlabel/OEM-CONFIG"
+        - "/dev/disk/by-partlabel/USR-B"
+  filesystems:
+    - name: "DATA"
+      mount:
+        device: "/dev/md/DATA"
+        format: "ext4"
+        label: DATA
+systemd:
+  units:
+    - name: "var-lib-data.mount"
+      enable: true
+      contents: |
+          [Mount]
+          What=/dev/md/DATA
+          Where=/var/lib/data
+          Type=ext4
+          
+          [Install]
+          WantedBy=local-fs.target
+`
 )
 
 var (
@@ -88,36 +115,18 @@ func init() {
 		Name:        "cl.disk.raid1.root",
 		Distros:     []string{"cl"},
 	})
+
+	// data with raid1
+	tmplDataRaid1, _ := util.ExecTemplate(CLConfigDataRaid, raidConfig{
+		RaidLevel: "raid1",
+	})
+
 	register.Register(&register.Test{
 		Run:         DataOnRaid,
 		ClusterSize: 1,
-		Name:        "cl.disk.raid.data",
-		UserData: conf.ContainerLinuxConfig(`storage:
-  raid:
-    - name: "DATA"
-      level: "raid1"
-      devices:
-        - "/dev/disk/by-partlabel/OEM-CONFIG"
-        - "/dev/disk/by-partlabel/USR-B"
-  filesystems:
-    - name: "DATA"
-      mount:
-        device: "/dev/md/DATA"
-        format: "ext4"
-        label: DATA
-systemd:
-  units:
-    - name: "var-lib-data.mount"
-      enable: true
-      contents: |
-          [Mount]
-          What=/dev/md/DATA
-          Where=/var/lib/data
-          Type=ext4
-          
-          [Install]
-          WantedBy=local-fs.target`),
-		Distros: []string{"cl"},
+		Name:        "cl.disk.raid1.data",
+		UserData:    conf.ContainerLinuxConfig(tmplDataRaid1),
+		Distros:     []string{"cl"},
 	})
 }
 
