@@ -136,6 +136,19 @@ func init() {
 		Distros:     []string{"cl"},
 	})
 
+	// data with raid0
+	tmplDataRaid0, _ := util.ExecTemplate(CLConfigDataRaid, raidConfig{
+		RaidLevel: "raid0",
+	})
+
+	register.Register(&register.Test{
+		Run:         DataOnRaid,
+		ClusterSize: 1,
+		Name:        "cl.disk.raid0.data",
+		UserData:    conf.ContainerLinuxConfig(tmplDataRaid0),
+		Distros:     []string{"cl"},
+	})
+
 	// data with raid1
 	tmplDataRaid1, _ := util.ExecTemplate(CLConfigDataRaid, raidConfig{
 		RaidLevel: "raid1",
