@@ -89,9 +89,11 @@ systemd:
 )
 
 var (
+	raid0RootUserData *conf.UserData
 	raid1RootUserData *conf.UserData
 
 	raidTypes = []string{
+		"raid0",
 		"raid1",
 	}
 )
@@ -101,6 +103,20 @@ type raidConfig struct {
 }
 
 func init() {
+	// root with raid0
+	tmplRootRaid0, _ := util.ExecTemplate(CLConfigRootRaid, raidConfig{
+		RaidLevel: "raid0",
+	})
+	raid0RootUserData = conf.ContainerLinuxConfig(tmplRootRaid0)
+
+	register.Register(&register.Test{
+		Run:         RootOnRaid0,
+		ClusterSize: 0,
+		Platforms:   []string{"qemu"},
+		Name:        "cl.disk.raid0.root",
+		Distros:     []string{"cl"},
+	})
+
 	// root with raid1
 	tmplRootRaid1, _ := util.ExecTemplate(CLConfigRootRaid, raidConfig{
 		RaidLevel: "raid1",
@@ -132,6 +148,40 @@ func init() {
 		UserData:    conf.ContainerLinuxConfig(tmplDataRaid1),
 		Distros:     []string{"cl"},
 	})
+}
+
+func RootOnRaid0(c cluster.TestCluster) {
+	var m platform.Machine
+	var err error
+	options := platform.MachineOptions{
+		AdditionalDisks: []platform.Disk{
+			{Size: "520M", DeviceOpts: []string{"serial=secondary"}},
+		},
+	}
+	switch pc := c.Cluster.(type) {
+	// These cases have to be separated because when put together to the same case statement
+	// the golang compiler no longer checks that the individual types in the case have the
+	// NewMachineWithOptions function, but rather whether platform.Cluster does which fails
+	case *qemu.Cluster:
+		m, err = pc.NewMachineWithOptions(raid0RootUserData, options)
+	case *unprivqemu.Cluster:
+		m, err = pc.NewMachineWithOptions(raid0RootUserData, options)
+	default:
+		c.Fatal("unknown cluster type")
+	}
+	if err != nil {
+		c.Fatal(err)
+	}
+
+	checkIfMountpointIsRaid(c, m, "/")
+
+	// reboot it to make sure it comes up again
+	err = m.Reboot()
+	if err != nil {
+		c.Fatalf("could not reboot machine: %v", err)
+	}
+
+	checkIfMountpointIsRaid(c, m, "/")
 }
 
 func RootOnRaid1(c cluster.TestCluster) {
