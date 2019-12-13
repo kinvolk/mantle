@@ -90,6 +90,10 @@ systemd:
 
 var (
 	raid1RootUserData *conf.UserData
+
+	raidTypes = []string{
+		"raid1",
+	}
 )
 
 type raidConfig struct {
@@ -213,13 +217,24 @@ func checkIfMountpointIsRaid(c cluster.TestCluster, m platform.Machine, mountpoi
 func checkIfMountpointIsRaidWalker(c cluster.TestCluster, bs []blockdevice, mountpoint string) bool {
 	for _, b := range bs {
 		if b.Mountpoint != nil && *b.Mountpoint == mountpoint {
-			if b.Type != "raid1" {
+			if !isValidRaidType(b.Type) {
 				c.Fatalf("device %q is mounted at %q with type %q (was expecting raid1)", b.Name, mountpoint, b.Type)
 			}
 			return true
 		}
 		foundRoot := checkIfMountpointIsRaidWalker(c, b.Children, mountpoint)
 		if foundRoot {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidRaidType checks if the given type string is one of the possible
+// RAID types supported by the testsuite. For example, raid0 or raid1.
+func isValidRaidType(rType string) bool {
+	for _, t := range raidTypes {
+		if t == rType {
 			return true
 		}
 	}
