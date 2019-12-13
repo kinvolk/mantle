@@ -19,14 +19,15 @@ import (
 
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/kola/register"
+	"github.com/coreos/mantle/kola/tests/util"
 	"github.com/coreos/mantle/platform"
 	"github.com/coreos/mantle/platform/conf"
 	"github.com/coreos/mantle/platform/machine/qemu"
 	"github.com/coreos/mantle/platform/machine/unprivqemu"
 )
 
-var (
-	raidRootUserData = conf.ContainerLinuxConfig(`storage:
+const (
+	CLConfigRootRaid = `storage:
   disks:
     - device: "/dev/disk/by-id/virtio-secondary"
       wipe_table: true
@@ -41,7 +42,7 @@ var (
          type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
   raid:
     - name: "rootarray"
-      level: "raid1"
+      level: "{{ .RaidLevel }}"
       devices:
         - "/dev/disk/by-partlabel/root1"
         - "/dev/disk/by-partlabel/root2"
@@ -56,20 +57,35 @@ var (
         device: "/dev/disk/by-id/virtio-primary-disk-part9"
         format: "ext4"
         label: wasteland
-        wipe_filesystem: true`)
+        wipe_filesystem: true
+`
 )
 
+var (
+	raid1RootUserData *conf.UserData
+)
+
+type raidConfig struct {
+	RaidLevel string
+}
+
 func init() {
+	// root with raid1
+	tmplRootRaid1, _ := util.ExecTemplate(CLConfigRootRaid, raidConfig{
+		RaidLevel: "raid1",
+	})
+	raid1RootUserData = conf.ContainerLinuxConfig(tmplRootRaid1)
+
 	register.Register(&register.Test{
 		// This test needs additional disks which is only supported on qemu since Ignition
 		// does not support deleting partitions without wiping the partition table and the
 		// disk doesn't have room for new partitions.
 		// TODO(ajeddeloh): change this to delete partition 9 and replace it with 9 and 10
 		// once Ignition supports it.
-		Run:         RootOnRaid,
+		Run:         RootOnRaid1,
 		ClusterSize: 0,
 		Platforms:   []string{"qemu"},
-		Name:        "cl.disk.raid.root",
+		Name:        "cl.disk.raid1.root",
 		Distros:     []string{"cl"},
 	})
 	register.Register(&register.Test{
@@ -105,7 +121,7 @@ systemd:
 	})
 }
 
-func RootOnRaid(c cluster.TestCluster) {
+func RootOnRaid1(c cluster.TestCluster) {
 	var m platform.Machine
 	var err error
 	options := platform.MachineOptions{
@@ -118,9 +134,9 @@ func RootOnRaid(c cluster.TestCluster) {
 	// the golang compiler no longer checks that the individual types in the case have the
 	// NewMachineWithOptions function, but rather whether platform.Cluster does which fails
 	case *qemu.Cluster:
-		m, err = pc.NewMachineWithOptions(raidRootUserData, options)
+		m, err = pc.NewMachineWithOptions(raid1RootUserData, options)
 	case *unprivqemu.Cluster:
-		m, err = pc.NewMachineWithOptions(raidRootUserData, options)
+		m, err = pc.NewMachineWithOptions(raid1RootUserData, options)
 	default:
 		c.Fatal("unknown cluster type")
 	}
