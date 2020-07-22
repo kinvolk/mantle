@@ -83,9 +83,13 @@ func Manhole(m Machine) error {
 
 // Enable SELinux on a machine (skip on machines without SELinux support)
 func EnableSelinux(m Machine) error {
-	_, stderr, err := m.SSH("if type -P setenforce; then sudo setenforce 1; fi")
+	_, stderr, err := m.SSH("if type -P restorecon; then sudo restorecon -R ~core/.ssh; fi")
 	if err != nil {
-		return fmt.Errorf("Unable to enable SELinux: %s: %s", err, stderr)
+		return fmt.Errorf("Unable to run restorecon: %s: %s", err, (string)(stderr))
+	}
+	_, stderr, err = m.SSH("if type -P setenforce; then sudo setenforce 1; fi")
+	if err != nil {
+		return fmt.Errorf("Unable to enable SELinux: %s: %s", err, (string)(stderr))
 	}
 	return nil
 }
