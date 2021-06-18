@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -186,7 +187,6 @@ systemd:
       [Service]
       Type=notify
       EnvironmentFile=-/run/flannel/flannel_docker_opts.env
-      Environment=DOCKER_OPTS=--selinux-enabled=false
 
       # the default is not to use systemd for cgroups because the delegate issues still
       # exists and systemd currently does not support the cgroup feature set required
@@ -592,7 +592,7 @@ func testDockerInfo(expectedFs string, c cluster.TestCluster) {
 	}
 
 	// Validations shared by all versions currently
-	if !hasSecurityOptions(info.SecurityOptions) {
+	if !reflect.DeepEqual(info.SecurityOptions, []string{"seccomp", "selinux", "cgroupns"}) {
 		c.Errorf("unexpected security options: %+v", info.SecurityOptions)
 	}
 
@@ -615,20 +615,6 @@ func testDockerInfo(expectedFs string, c cluster.TestCluster) {
 	} else {
 		c.Errorf("runc was not in runtimes: %+v", info.Runtimes)
 	}
-}
-
-// hasSecurityOptions strictly checks that at least one of
-// the Docker security option is enabled (seccomp, selinux).
-func hasSecurityOptions(opts []string) bool {
-	for _, opt := range opts {
-		switch opt {
-		case "selinux", "seccomp", "cgroupns":
-		default:
-			return false
-		}
-	}
-
-	return true
 }
 
 // dockerSELinux tests SELinux for Docker by running a container
